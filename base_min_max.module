@@ -129,11 +129,9 @@ function base_min_max_field_widget_form(&$form, &$form_state, $field, $instance,
         ]
     ];
 
-    $required = $element['#required'];
-
     $element['base'] = [
       '#type' => 'textfield',
-      '#required' => $required,
+      '#required' => false,
       '#title' => t('Base'),
       '#default_value' => isset($items[$delta]['base']) ? $items[$delta]['base'] : NULL,
       '#weight' => 1,
@@ -145,7 +143,7 @@ function base_min_max_field_widget_form(&$form, &$form_state, $field, $instance,
 
     $element['minimum'] = [
       '#type' => 'textfield',
-      '#required' => $required,
+      '#required' => false,
       '#title' => t('Minimum'),
       '#default_value' => isset($items[$delta]['minimum']) ? $items[$delta]['minimum'] : NULL,
       '#weight' => 2,
@@ -157,7 +155,7 @@ function base_min_max_field_widget_form(&$form, &$form_state, $field, $instance,
 
     $element['maximum'] = [
       '#type' => 'textfield',
-      '#required' => $required,
+      '#required' => false,
       '#title' => t('Maximum'),
       '#default_value' => isset($items[$delta]['maximum']) ? $items[$delta]['maximum'] : NULL,
       '#weight' => 3,
@@ -193,7 +191,7 @@ function _base_min_max_field_validate_custom($element, &$form_state) {
   foreach ($values[$field_name][$language] as $delta => $item) {
     foreach($columns as $column_name => $column_data) {
       if(empty($item[$column_name])) {
-        $item[$column_name] = "0";
+        $item[$column_name] = $item["base"];
       }
     }
     form_set_value($element, $item, $form_state);
@@ -207,6 +205,16 @@ function base_min_max_field_validate($entity_type, $entity, $field, $instance,
                                      $langcode, $items, &$errors) {
   if($field['type'] == 'baseminmax') {
     foreach ($items as $delta => &$item) {
+
+      if(empty($item['base'])) {
+        $errors[$field['field_name']][$langcode][$delta][] = [
+          'error' => 'baseminmax_' . 'base',
+          'message' => t('%field - Base value cannot be empty.', [
+            '%field' => $instance['label'],
+          ]),
+        ];
+      }
+
       if($item['minimum'] > $item['base'] || $item['minimum'] > $item['maximum']) {
         $errors[$field['field_name']][$langcode][$delta][] = [
           'error' => 'baseminmax_' . 'minimum',
@@ -253,7 +261,7 @@ function base_min_max_field_formatter_view($entity_type, $entity, $field,
                                            $instance, $langcode, $items,
                                            $display) {
   $element = [];
-  $settings = $display['settings'];
+  //$settings = $display['settings'];
   switch ($display['type']) {
     case 'base_min_max_default':
       foreach ($items as $delta => $item) {
