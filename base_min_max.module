@@ -1,0 +1,286 @@
+<?php
+
+/**
+ * Implements hook_field_info().
+ */
+function base_min_max_field_info() {
+  return [
+    'baseminmax' => [
+      'label' => t('Base/Min/Max'),
+      'description' => t('This field stores three values: a base value, and minimum and maximum values for searching.'),
+      'settings' => [
+
+      ],
+      'instance_settings' => [
+        'min_base' => 0,
+        'max_base' => 100,
+        'min_minimum' => 0,
+        'max_minimum' => 100,
+        'min_maximum' => 0,
+        'max_maximum' => 100,
+      ],
+      'default_widget' => 'baseminmax_combined',
+      'default_formatter' => 'baseminmax_default',
+    ],
+  ];
+}
+
+/**
+ * Implements hook_field_schema().
+ * @param $field
+ * @return null|array
+ */
+function base_min_max_field_schema($field) {
+  $schema = null;
+  if($field['type'] == 'baseminmax') {
+    $schema = [];
+
+    $schema['columns']['base'] = [
+      'type' => 'numeric',
+      'size' => 'normal',
+      'not null' => false,
+      'default' => 0,
+      'precision' => 10,
+      'scale' => 2
+    ];
+
+    $schema['columns']['minimum'] = [
+      'type' => 'numeric',
+      'size' => 'normal',
+      'not null' => false,
+      'default' => 0,
+      'precision' => 10,
+      'scale' => 2
+    ];
+
+    $schema['columns']['maximum'] = [
+      'type' => 'numeric',
+      'size' => 'normal',
+      'not null' => false,
+      'default' => 0,
+      'precision' => 10,
+      'scale' => 2
+    ];
+
+    $schema['indexes'] = [
+      'base' => ['base'],
+      'minimum' => ['minimum'],
+      'maximum' => ['maximum'],
+    ];
+  }
+  return $schema;
+}
+
+/**
+ * Implements hook_field_is_empty().
+ * @param array $item
+ * @param array $field
+ * @return boolean
+ */
+function base_min_max_field_is_empty($item, $field) {
+  $answer = false;
+  if($field['type'] == 'baseminmax') {
+    $answer = empty($item['base']) && empty($item['minimum']) && empty($item['maximum']);
+  }
+  return $answer;
+}
+
+/**
+ * Implements hook_field_settings_form().
+ */
+function base_min_max_field_settings_form($field, $instance, $has_data) {
+  $form = null;
+  return $form;
+}
+
+/**
+ * Implements hook_field_widget_info().
+ * @return array
+ */
+function base_min_max_field_widget_info() {
+  return [
+    'baseminmax_simple' => [
+      'label' => t('Base Min Max - Separate Fields'),
+      'description' => t('Enter data separately'),
+      'field types' => ['baseminmax'],
+      'behaviors' => [
+        'multiple values' => FIELD_BEHAVIOR_DEFAULT,
+        'default value' => FIELD_BEHAVIOR_DEFAULT,
+      ],
+    ],
+  ];
+}
+
+/**
+ * Implements hook_field_widget_form().
+ */
+function base_min_max_field_widget_form(&$form, &$form_state, $field, $instance,
+                                        $langcode, $items, $delta, $element) {
+  if ($instance['widget']['type'] == 'baseminmax_simple') {
+
+    $form['#attached']['css'][] = drupal_get_path('module', 'base_min_max') . '/css/base_min_max.less';
+
+    $element += [
+        '#type' => 'fieldset',
+        '#element_validate' => ['_base_min_max_field_validate_custom'],
+        '#collapsible' => false,
+        '#attributes' => [
+          'class' => ['baseminmax-fieldset', 'container-inline'],
+        ]
+    ];
+
+    $required = $element['#required'];
+
+    $element['base'] = [
+      '#type' => 'textfield',
+      '#required' => $required,
+      '#title' => t('Base'),
+      '#default_value' => isset($items[$delta]['base']) ? $items[$delta]['base'] : NULL,
+      '#weight' => 1,
+      '#size' => 10,
+      '#attributes' => [
+        'class' => ['text-right'],
+      ],
+    ];
+
+    $element['minimum'] = [
+      '#type' => 'textfield',
+      '#required' => $required,
+      '#title' => t('Minimum'),
+      '#default_value' => isset($items[$delta]['minimum']) ? $items[$delta]['minimum'] : NULL,
+      '#weight' => 2,
+      '#size' => 10,
+      '#attributes' => [
+        'class' => ['text-right'],
+      ],
+    ];
+
+    $element['maximum'] = [
+      '#type' => 'textfield',
+      '#required' => $required,
+      '#title' => t('Maximum'),
+      '#default_value' => isset($items[$delta]['maximum']) ? $items[$delta]['maximum'] : NULL,
+      '#weight' => 3,
+      '#size' => 10,
+      '#attributes' => [
+        'class' => ['text-right'],
+      ],
+    ];
+  }
+
+  return $element;
+}
+
+/**
+ * @param array $element
+ * @param array $form_state
+ */
+function _base_min_max_field_validate_custom($element, &$form_state) {
+  if ($form_state['complete form']['#form_id'] == 'field_ui_field_edit_form') {
+    return;
+  }
+
+  $values = $form_state['values'];
+  $field_name = $element['#field_name'];
+  $language = isset($values[$field_name][$values['language']]) ? $values['language'] : 'und';
+
+  $columns = [
+    'base' => 'base',
+    'minimum' => 'minimum',
+    'maximum' => 'maximum',
+  ];
+
+  foreach ($values[$field_name][$language] as $delta => $item) {
+    foreach($columns as $column_name => $column_data) {
+      if(empty($item[$column_name])) {
+        $item[$column_name] = "0";
+      }
+    }
+    form_set_value($element, $item, $form_state);
+  }
+}
+
+/**
+ * Implements hook_field_validate().
+ */
+function base_min_max_field_validate($entity_type, $entity, $field, $instance,
+                                     $langcode, $items, &$errors) {
+  if($field['type'] == 'baseminmax') {
+    foreach ($items as $delta => &$item) {
+      if($item['minimum'] > $item['base'] || $item['minimum'] > $item['maximum']) {
+        $errors[$field['field_name']][$langcode][$delta][] = [
+          'error' => 'baseminmax_' . 'minimum',
+          'message' => t('%field - Minimum must be smaller than base or maximum.', [
+            '%field' => $instance['label'],
+          ]),
+        ];
+      }
+
+      if($item['maximum'] < $item['minimum'] || $item['maximum'] < $item['base']) {
+        $errors[$field['field_name']][$langcode][$delta][] = [
+          'error' => 'baseminmax_' . 'maximum',
+          'message' => t('%field - Maximum must be bigger than base or minimum.', [
+            '%field' => $instance['label'],
+          ]),
+        ];
+      }
+
+    }
+  }
+}
+
+/**
+ * Implements hook_field_formatter_info().
+ */
+function base_min_max_field_formatter_info() {
+  return [
+    'base_min_max_default' => [
+      'label' => t('Default'),
+      'field types' => ['baseminmax'],
+    ],
+    'base_min_max_json' => [
+      'label' => t('JSON'),
+      'field types' => ['baseminmax'],
+    ],
+  ];
+}
+
+/**
+ * Implements hook_field_formatter_view().
+ * @return array
+ */
+function base_min_max_field_formatter_view($entity_type, $entity, $field,
+                                           $instance, $langcode, $items,
+                                           $display) {
+  $element = [];
+  $settings = $display['settings'];
+  switch ($display['type']) {
+    case 'base_min_max_default':
+      foreach ($items as $delta => $item) {
+        $output = t('Base: %base, Min: %minimum, Max: %maximum', [
+          '%base' =>  $item['base'],
+          '%minimum' =>  $item['minimum'],
+          '%maximum' =>  $item['maximum'],
+        ]);
+        $element[$delta] = array('#markup' => $output);
+      }
+      break;
+    case 'base_min_max_json':
+      foreach ($items as $delta => $item) {
+        $output = json_encode($item);
+        $element[$delta] = array('#markup' => $output);
+      }
+      break;
+  }
+  return $element;
+}
+
+/**
+ * Implements hook_views_api().
+ */
+function base_min_max_views_api() {
+  return [
+    'api' => 3,
+    'path' => drupal_get_path('module', 'base_min_max') . '/views',
+  ];
+}

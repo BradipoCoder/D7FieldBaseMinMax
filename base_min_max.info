@@ -1,0 +1,7 @@
+name = BaseMinMax Field Type
+description = "Adds a field type to be able to handle base, minimum, maximum values."
+package = Fields
+core = 7.x
+dependencies[] = field
+files[] = base_min_max.module
+files[] = views/base_min_max_handler_filter_range.inc
