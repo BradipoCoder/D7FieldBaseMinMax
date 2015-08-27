@@ -327,9 +327,6 @@ function base_min_max_feeds_processor_targets_alter(array &$targets, $entity_typ
 
 function base_min_max_feeds_field_baseminmax_set_target(\FeedsSource $source, $entity, $target, array $values, array $mapping) {
   list($field_name, $sub_field) = explode(':', $target);
-  dsm("Mapping BMM FLD($target): base:" . $field_name . "  SUB: " . $sub_field);
-  dsm("Mapping BMM VAL: " . json_encode($values));
-
   $field = isset($entity->$field_name) ? $entity->$field_name : ['und' => []];
 
   // Iterate over all values.
