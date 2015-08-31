@@ -203,6 +203,12 @@ function _base_min_max_field_validate_custom($element, &$form_state) {
  */
 function base_min_max_field_validate($entity_type, $entity, $field, $instance,
                                      $langcode, $items, &$errors) {
+
+  // This must be the field configuration form
+  if(!$entity_type) {
+    return;
+  }
+
   if($field['type'] == 'baseminmax') {
     foreach ($items as $delta => &$item) {
 
