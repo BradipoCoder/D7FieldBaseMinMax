@@ -9,7 +9,7 @@ function base_min_max_field_info() {
       'label' => t('Base/Min/Max'),
       'description' => t('This field stores three values: a base value, and minimum and maximum values for searching.'),
       'settings' => [
-
+        'type' => 'numeric'
       ],
       'instance_settings' => [
         'min_base' => 0,
@@ -29,38 +29,38 @@ function base_min_max_field_info() {
  * Implements hook_field_schema().
  * @param $field
  * @return null|array
+ * @throws \Exception
  */
 function base_min_max_field_schema($field) {
   $schema = null;
   if($field['type'] == 'baseminmax') {
     $schema = [];
 
-    $schema['columns']['base'] = [
-      'type' => 'numeric',
-      'size' => 'normal',
-      'not null' => false,
-      'default' => 0,
-      'precision' => 10,
-      'scale' => 2
-    ];
+    $columnType = $field['settings']['type'];
+    if($columnType == 'numeric') {
+      $typeSpecificSettings = [
+        'type' => $columnType,
+        'size' => 'normal',
+        'precision' => 10,
+        'scale' => 2,
+        'default' => 0,
+        'not null' => false,
+      ];
+    } else if ($columnType == 'varchar') {
+      $typeSpecificSettings = [
+        'type' => $columnType,
+        'length' => 255,
+        'size' => 'normal',
+        'default' => '',
+        'not null' => false,
+      ];
+    } else {
+      throw new \Exception("Unknow column type!");
+    }
 
-    $schema['columns']['minimum'] = [
-      'type' => 'numeric',
-      'size' => 'normal',
-      'not null' => false,
-      'default' => 0,
-      'precision' => 10,
-      'scale' => 2
-    ];
-
-    $schema['columns']['maximum'] = [
-      'type' => 'numeric',
-      'size' => 'normal',
-      'not null' => false,
-      'default' => 0,
-      'precision' => 10,
-      'scale' => 2
-    ];
+    $schema['columns']['base'] = $typeSpecificSettings;
+    $schema['columns']['minimum'] = $typeSpecificSettings;
+    $schema['columns']['maximum'] = $typeSpecificSettings;
 
     $schema['indexes'] = [
       'base' => ['base'],
@@ -80,7 +80,7 @@ function base_min_max_field_schema($field) {
 function base_min_max_field_is_empty($item, $field) {
   $answer = false;
   if($field['type'] == 'baseminmax') {
-    $answer = empty($item['base']) && empty($item['minimum']) && empty($item['maximum']);
+    $answer = !strlen($item['base']) && !strlen($item['minimum']) && !strlen($item['maximum']);
   }
   return $answer;
 }
@@ -89,8 +89,44 @@ function base_min_max_field_is_empty($item, $field) {
  * Implements hook_field_settings_form().
  */
 function base_min_max_field_settings_form($field, $instance, $has_data) {
-  $form = null;
+  $settings = $field['settings'];
+  $form = [];
+
+  if(!$has_data) {
+    $form['type'] = [
+      '#type' => 'select',
+      '#title' => t('Data Type'),
+      '#options' => [
+        'numeric' => t('Numeric'),
+        'varchar' => t('Textual'),
+      ],
+      '#default_value' => $settings['type'],
+      '#required' => true,
+      '#description' => t('Select what type of data you want to store in this field. '
+                          .'Numeric type fields can be used as slider/range filters in views.'),
+    ];
+  } else {
+    $typeName = ($settings['type']=="numeric" ? "Numeric" : "Textual");
+    $form['type'] = [
+      '#markup' => t('Type: %type', ['%type' => $typeName]),
+    ];
+  }
   return $form;
+}
+
+/**
+ * Disable cardinality
+ * @param array $form
+ * @param array $form_state
+ * @param string $form_id
+ */
+function base_min_max_form_field_ui_field_edit_form_alter(&$form, &$form_state, $form_id) {
+  if ($form['#field']['type'] == 'baseminmax') {
+    $form['field']['cardinality'] = [
+      '#type' => 'hidden',
+      '#value' => 1,
+    ];
+  }
 }
 
 /**
@@ -181,20 +217,27 @@ function _base_min_max_field_validate_custom($element, &$form_state) {
   $values = $form_state['values'];
   $field_name = $element['#field_name'];
   $language = isset($values[$field_name][$values['language']]) ? $values['language'] : 'und';
+  $fieldType = $form_state['field'][$field_name][$language]['field']['settings']['type'];
 
-  $columns = [
-    'base' => 'base',
-    'minimum' => 'minimum',
-    'maximum' => 'maximum',
-  ];
 
-  foreach ($values[$field_name][$language] as $delta => $item) {
-    foreach($columns as $column_name => $column_data) {
-      if(empty($item[$column_name])) {
-        $item[$column_name] = $item["base"];
+  if ($fieldType == 'numeric') {
+    $columns = [
+      'base' => 'base',
+      'minimum' => 'minimum',
+      'maximum' => 'maximum',
+    ];
+    foreach ($values[$field_name][$language] as $delta => $item) {
+      foreach ($columns as $column_name => $column_data) {
+        if (empty($item[$column_name])) {
+          $baseValue = floatval($item["base"]);
+          $item[$column_name] = $baseValue;
+        } else {
+          $columnValue = floatval($item[$column_name]);
+          $item[$column_name] = $columnValue;
+        }
       }
+      form_set_value($element, $item, $form_state);
     }
-    form_set_value($element, $item, $form_state);
   }
 }
 
@@ -203,16 +246,15 @@ function _base_min_max_field_validate_custom($element, &$form_state) {
  */
 function base_min_max_field_validate($entity_type, $entity, $field, $instance,
                                      $langcode, $items, &$errors) {
-
   // This must be the field configuration form
   if(!$entity_type) {
     return;
   }
 
-  if($field['type'] == 'baseminmax') {
+  if($field['type'] == 'baseminmax' && $field['settings']['type'] == 'numeric') {
     foreach ($items as $delta => &$item) {
 
-      if(empty($item['base'])) {
+      if(!strlen($item['base'])) {
         $errors[$field['field_name']][$langcode][$delta][] = [
           'error' => 'baseminmax_' . 'base',
           'message' => t('%field - Base value cannot be empty.', [
