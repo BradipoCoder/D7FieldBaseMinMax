@@ -376,6 +376,9 @@ function base_min_max_feeds_processor_targets_alter(array &$targets, $entity_typ
 function base_min_max_feeds_field_baseminmax_set_target(\FeedsSource $source, $entity, $target, array $values, array $mapping) {
   list($field_name, $sub_field) = explode(':', $target);
   $field = isset($entity->$field_name) ? $entity->$field_name : ['und' => []];
+  $fieldInfo = field_info_field($field_name);
+  $fieldType = $fieldInfo['settings']['type'];
+  $isNumeric = $fieldType == 'numeric';
 
   // Iterate over all values.
   $delta = 0;
@@ -391,14 +394,18 @@ function base_min_max_feeds_field_baseminmax_set_target(\FeedsSource $source, $e
       }
       if(!$sub_field) {
         list($baseVal, $minVal, $maxVal) = explode('|', $value);
-        $baseVal = floatval($baseVal);
-        $minVal = $minVal ? floatval($minVal) : $baseVal;
-        $maxVal = $maxVal ? floatval($maxVal) : $baseVal;
+        $minVal = $minVal ? $minVal : $baseVal;
+        $maxVal = $maxVal ? $maxVal : $baseVal;
+        if($isNumeric) {
+          $baseVal = floatval($baseVal);
+          $minVal = floatval($minVal);
+          $maxVal = floatval($maxVal);
+        }
         $field['und'][$delta]['base'] = $baseVal;
         $field['und'][$delta]['minimum'] = $minVal;
         $field['und'][$delta]['maximum'] = $maxVal;
       } else {
-        $value = floatval($value);
+        $value = $isNumeric ? floatval($value) : $value;
         $field['und'][$delta][$sub_field] = $value;
       }
     }
