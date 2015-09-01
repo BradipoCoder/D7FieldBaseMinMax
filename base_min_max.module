@@ -360,7 +360,7 @@ function base_min_max_feeds_processor_targets_alter(array &$targets, $entity_typ
     if ($fieldInfo['type'] == 'baseminmax') {
       foreach(['', 'base', 'minimum', 'maximum'] as $type) {
         $targets[$fieldName . ($type ? ':'.$type : '')] = [
-          'name' => t('@label@type', array('@label' => $fieldInstance['label'], '@type' => ($type ? ': '.ucfirst($type) : ''))),
+          'name' => t('@label@type', array('@label' => check_plain($fieldInstance['label']), '@type' => ($type ? ': '.ucfirst($type) : ''))),
           'callback' => 'base_min_max_feeds_field_baseminmax_set_target',
           'description' => t('The @typedesc @label field of the node.',
                              [
